@@ -7,6 +7,12 @@ use clap::Parser;
 extern crate clap;
 use clap::Parser;
 
+extern crate malachite;
+use malachite::{Natural, num::conversion::traits::Digits};
+// use malachite::natural::exhaustive::exhaustive_natural_inclusive_range;
+
+use std::time::Instant;
+
 extern crate reqwest;
 extern crate serde;
 use serde::{Serialize, Deserialize};
@@ -80,37 +86,19 @@ fn submit_field_detailed(submit_data: FieldSubmit) {
 }
 
 // get the number of unique digits in the concatenated sqube of a specified number
-fn get_num_uniques(num: u128, base: u32) -> u32 {
+#[inline]
+fn get_num_uniques(num: &Natural, base: i32) -> u32 {
+    let mut digits_indicator = vec![false; base as usize];
 
-    while j >= 1 {
-        j -= 1;
-        let x = cube_representation[j];
-        let digit = if base <= 36 {
-            if x>0x39 { 
-                x-0x57 
-            } else {
-                x-0x30
-            }
-        } else {
-            if x>0x39 { 
-                if x > 0x60 {
-                    x - 0x3d
-                } else {
-                    x - 0x37
-                }
-            } else {
-                x-0x30
-            }
-        };
-    
-    // apppend the cube values
-    sqube.append(&mut BigUint::from(num)
-        .pow(3)
-        .to_radix_be(base));
-    
-    // sort & dedup to get just the unique values
-    sqube.sort_unstable();
-    sqube.dedup();
+    let squared = num * num;
+
+    for digit in squared.to_digits_asc(&(base as u8)) { 
+        digits_indicator[digit as usize] = true;
+    }
+
+    let cubed = squared * num;
+
+    for digit in cubed.to_digits_asc(&(base as u8)) { 
         digits_indicator[digit as usize] = true;
     }
 
@@ -123,40 +111,36 @@ fn get_num_uniques(num: u128, base: u32) -> u32 {
     return unique_digits
 }
 
-// fn get_num_uniques(num: u128, base: i32) -> u32 {
-//     get_num_uniques(&Integer::from(num), base)
-// }
-
 #[test]
 fn test_get_num_uniques() {
     assert_eq!(
-        get_num_uniques(&Integer::from(69), 10), 
+        get_num_uniques(&Natural::from(69 as u128), 10), 
         10
     );
     assert_eq!(
-        get_num_uniques(&Integer::from(256), 2), 
+        get_num_uniques(&Natural::from(256 as u128), 2), 
         2
     );
     assert_eq!(
-        get_num_uniques(&Integer::from(123), 8), 
+        get_num_uniques(&Natural::from(123 as u128), 8), 
         8
     );
     assert_eq!(
-        get_num_uniques(&Integer::from(15), 16), 
+        get_num_uniques(&Natural::from(15 as u128), 16), 
         5
     );
-    // assert_eq!(
-    //     get_num_uniques(&Integer::from(100), 99), 
-    //     3
-    // );
-    // assert_eq!(
-    //     get_num_uniques(&Integer::from(4134931983708 as u128), 40), 
-    //     39
-    // );
-    // assert_eq!(
-    //     get_num_uniques(&Integer::from(173583337834150 as u128), 44), 
-    //     41
-    // );
+    assert_eq!(
+        get_num_uniques(&Natural::from(100 as u128), 99), 
+        3
+    );
+    assert_eq!(
+        get_num_uniques(&Natural::from(4134931983708 as u128), 40), 
+        39
+    );
+    assert_eq!(
+        get_num_uniques(&Natural::from(173583337834150 as u128), 44), 
+        41
+    );
 }
 
 // get detailed niceness data on a range of numbers and aggregate it
@@ -181,7 +165,7 @@ fn process_range_detailed(n_start: u128, n_end: u128, base: u32) -> (Vec<u128>,H
     for num in n_start..n_end { 
 
         // get the number of uniques in the sqube
-        let num_uniques: u32 = get_num_uniques(&Integer::from(num), base as i32);
+        let num_uniques: u32 = get_num_uniques(&Natural::from(num), base as i32);
 
         // check if it's nice enough to record in near_misses
         if num_uniques > near_misses_cutoff {
@@ -254,6 +238,8 @@ fn main() {
     // print debug information
     println!("{:?}", claim_data);
 
+    let before = Instant::now();
+
     // search for near_misses and qty_uniques
     let (
         near_misses, 
@@ -264,17 +250,21 @@ fn main() {
         claim_data.base,
     );
     
+    println!("Elapsed time: {:.4?}", before.elapsed());
+
     // convert the near_misses list into a map of {num, uniques}
     let mut near_miss_map: HashMap<u128,u32> = HashMap::new();
     for nm in near_misses.iter() {
         near_miss_map.insert(
             *nm,
             get_num_uniques(
-                &Integer::from(*nm),
+                &Natural::from(*nm),
                 claim_data.base as i32
             )
         );
     }
+
+    // println!("Elapsed time: {:.4?}", before.elapsed());
 
     // compile results
     let submit_data = FieldSubmit { 
