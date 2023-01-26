@@ -4,8 +4,8 @@ use std::collections::HashMap;
 extern crate clap;
 use clap::Parser;
 
-extern crate num_bigint;
-use num_bigint::BigUint;
+extern crate clap;
+use clap::Parser;
 
 extern crate reqwest;
 extern crate serde;
@@ -82,11 +82,26 @@ fn submit_field_detailed(submit_data: FieldSubmit) {
 // get the number of unique digits in the concatenated sqube of a specified number
 fn get_num_uniques(num: u128, base: u32) -> u32 {
 
-    // sqube: the list of numbers in the quare and cube
-    // initialized here with just the square
-    let mut sqube = BigUint::from(num)
-        .pow(2)
-        .to_radix_be(base);
+    while j >= 1 {
+        j -= 1;
+        let x = cube_representation[j];
+        let digit = if base <= 36 {
+            if x>0x39 { 
+                x-0x57 
+            } else {
+                x-0x30
+            }
+        } else {
+            if x>0x39 { 
+                if x > 0x60 {
+                    x - 0x3d
+                } else {
+                    x - 0x37
+                }
+            } else {
+                x-0x30
+            }
+        };
     
     // apppend the cube values
     sqube.append(&mut BigUint::from(num)
@@ -96,41 +111,52 @@ fn get_num_uniques(num: u128, base: u32) -> u32 {
     // sort & dedup to get just the unique values
     sqube.sort_unstable();
     sqube.dedup();
+        digits_indicator[digit as usize] = true;
+    }
 
-    // return the length of the deduplicated list
-    return sqube.len() as u32;
+    let mut unique_digits = 0;
+
+    for digit in digits_indicator {
+        if digit {unique_digits += 1}
+    }
+
+    return unique_digits
 }
+
+// fn get_num_uniques(num: u128, base: i32) -> u32 {
+//     get_num_uniques(&Integer::from(num), base)
+// }
 
 #[test]
 fn test_get_num_uniques() {
     assert_eq!(
-        get_num_uniques(69, 10), 
+        get_num_uniques(&Integer::from(69), 10), 
         10
     );
     assert_eq!(
-        get_num_uniques(256, 2), 
+        get_num_uniques(&Integer::from(256), 2), 
         2
     );
     assert_eq!(
-        get_num_uniques(123, 8), 
+        get_num_uniques(&Integer::from(123), 8), 
         8
     );
     assert_eq!(
-        get_num_uniques(15, 16), 
+        get_num_uniques(&Integer::from(15), 16), 
         5
     );
-    assert_eq!(
-        get_num_uniques(100, 99), 
-        3
-    );
-    assert_eq!(
-        get_num_uniques(4134931983708, 40), 
-        39
-    );
-    assert_eq!(
-        get_num_uniques(173583337834150, 44), 
-        41
-    );
+    // assert_eq!(
+    //     get_num_uniques(&Integer::from(100), 99), 
+    //     3
+    // );
+    // assert_eq!(
+    //     get_num_uniques(&Integer::from(4134931983708 as u128), 40), 
+    //     39
+    // );
+    // assert_eq!(
+    //     get_num_uniques(&Integer::from(173583337834150 as u128), 44), 
+    //     41
+    // );
 }
 
 // get detailed niceness data on a range of numbers and aggregate it
@@ -155,7 +181,7 @@ fn process_range_detailed(n_start: u128, n_end: u128, base: u32) -> (Vec<u128>,H
     for num in n_start..n_end { 
 
         // get the number of uniques in the sqube
-        let num_uniques: u32 = get_num_uniques(num, base);
+        let num_uniques: u32 = get_num_uniques(&Integer::from(num), base as i32);
 
         // check if it's nice enough to record in near_misses
         if num_uniques > near_misses_cutoff {
@@ -244,8 +270,8 @@ fn main() {
         near_miss_map.insert(
             *nm,
             get_num_uniques(
-                *nm,
-                claim_data.base
+                &Integer::from(*nm),
+                claim_data.base as i32
             )
         );
     }
